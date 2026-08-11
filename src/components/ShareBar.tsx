@@ -6,13 +6,10 @@ import { useState } from "react";
  * The growth loop. Every share carries the wallet URL, and the URL renders a
  * card, so a screenshot and a link both point back here.
  */
-export function ShareBar({ address, headline }: { address: string; headline: string }) {
+export function ShareBar({ path, headline }: { path: string; headline: string }) {
   const [copied, setCopied] = useState(false);
 
-  const url =
-    typeof window !== "undefined"
-      ? window.location.origin + `/w/${address}`
-      : `/w/${address}`;
+  const url = typeof window !== "undefined" ? window.location.origin + path : path;
 
   async function copy() {
     try {

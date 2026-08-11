@@ -1,4 +1,5 @@
 import { fetchRawLeaderboard, type LeaderboardRow, type Window } from "./hyperliquid";
+import { sharedState } from "./shared-state";
 
 /**
  * The upstream leaderboard is a single ~34MB JSON document with 40k+ traders.
@@ -26,8 +27,14 @@ interface CacheState {
   fetchedAt: number;
 }
 
-let cache: CacheState | null = null;
-let inflight: Promise<CacheState> | null = null;
+/**
+ * Shared across route bundles. Without this each route downloads and parses the
+ * ~45MB leaderboard separately — see shared-state.ts.
+ */
+const state = sharedState("leaderboard", () => ({
+  cache: null as CacheState | null,
+  inflight: null as Promise<CacheState> | null,
+}));
 
 function slim(rows: LeaderboardRow[]): Trader[] {
   const out: Trader[] = [];
@@ -51,9 +58,9 @@ function slim(rows: LeaderboardRow[]): Trader[] {
 
 async function refresh(): Promise<CacheState> {
   const rows = await fetchRawLeaderboard();
-  const state: CacheState = { traders: slim(rows), fetchedAt: Date.now() };
-  cache = state;
-  return state;
+  const next: CacheState = { traders: slim(rows), fetchedAt: Date.now() };
+  state.cache = next;
+  return next;
 }
 
 /**
@@ -61,25 +68,20 @@ async function refresh(): Promise<CacheState> {
  * expired entry is served immediately and refreshed behind the request.
  */
 export async function getLeaderboard(): Promise<Trader[]> {
+  const { cache } = state;
   if (cache && Date.now() - cache.fetchedAt < TTL_MS) return cache.traders;
 
+  state.inflight ??= refresh().finally(() => {
+    state.inflight = null;
+  });
+
   if (cache) {
-    if (!inflight) {
-      inflight = refresh().finally(() => {
-        inflight = null;
-      });
-      // A background refresh failure must not surface as an unhandled rejection.
-      inflight.catch(() => {});
-    }
+    // A background refresh failure must not surface as an unhandled rejection.
+    state.inflight.catch(() => {});
     return cache.traders;
   }
 
-  if (!inflight) {
-    inflight = refresh().finally(() => {
-      inflight = null;
-    });
-  }
-  return (await inflight).traders;
+  return (await state.inflight).traders;
 }
 
 export interface LeaderboardQuery {

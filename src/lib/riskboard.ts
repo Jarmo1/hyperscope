@@ -5,6 +5,8 @@ import {
   type Position,
 } from "./hyperliquid";
 import { getLeaderboard, type Trader } from "./leaderboard";
+import { pooled } from "./pool";
+import { sharedState } from "./shared-state";
 
 /**
  * The front page: which large accounts are closest to being liquidated right
@@ -35,32 +37,11 @@ const MIN_ACCOUNT_VALUE = 100_000;
 const CONCURRENCY = 10;
 const TTL_MS = 90 * 1000;
 
-let cache: { entries: RiskEntry[]; fetchedAt: number } | null = null;
-let inflight: Promise<RiskEntry[]> | null = null;
-
-/** Run tasks with a bounded worker pool so we stay well inside HL rate limits. */
-async function pooled<T, R>(
-  items: T[],
-  limit: number,
-  fn: (item: T) => Promise<R>,
-): Promise<(R | null)[]> {
-  const results: (R | null)[] = new Array(items.length).fill(null);
-  let cursor = 0;
-
-  async function worker() {
-    while (cursor < items.length) {
-      const index = cursor++;
-      try {
-        results[index] = await fn(items[index]);
-      } catch {
-        results[index] = null;
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
-  return results;
-}
+/** Shared across route bundles — see shared-state.ts. */
+const state = sharedState("riskboard", () => ({
+  cache: null as { entries: RiskEntry[]; fetchedAt: number } | null,
+  inflight: null as Promise<RiskEntry[]> | null,
+}));
 
 async function build(): Promise<RiskEntry[]> {
   const [traders, mids] = await Promise.all([getLeaderboard(), getAllMids()]);
@@ -107,21 +88,20 @@ async function build(): Promise<RiskEntry[]> {
 }
 
 export async function getRiskBoard(): Promise<RiskEntry[]> {
+  const { cache } = state;
   if (cache && Date.now() - cache.fetchedAt < TTL_MS) return cache.entries;
 
-  if (!inflight) {
-    inflight = build()
-      .then((entries) => {
-        cache = { entries, fetchedAt: Date.now() };
-        return entries;
-      })
-      .finally(() => {
-        inflight = null;
-      });
-  }
+  state.inflight ??= build()
+    .then((entries) => {
+      state.cache = { entries, fetchedAt: Date.now() };
+      return entries;
+    })
+    .finally(() => {
+      state.inflight = null;
+    });
 
   try {
-    return await inflight;
+    return await state.inflight;
   } catch {
     // A failed rebuild should serve stale data rather than break the page.
     return cache?.entries ?? [];

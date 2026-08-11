@@ -83,7 +83,7 @@ export default async function WalletPage({ params, searchParams }: Props) {
           </h1>
           <p className="tnum text-[11px] text-graphite mt-1 break-all">{address}</p>
         </div>
-        <ShareBar address={address} headline={headline} />
+        <ShareBar path={`/w/${address}`} headline={headline} />
       </div>
 
       {/* Account summary */}

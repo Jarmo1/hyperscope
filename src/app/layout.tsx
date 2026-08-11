@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Mono, IBM_Plex_Sans, IBM_Plex_Sans_Condensed } from "next/font/google";
 import Link from "next/link";
+import { siteUrl } from "@/lib/site";
 import "./globals.css";
 
 const plexSans = IBM_Plex_Sans({
@@ -21,20 +22,9 @@ const plexMono = IBM_Plex_Mono({
   weight: ["400", "500", "600"],
 });
 
-/**
- * og:image must be an absolute URL for X, Telegram and Farcaster to fetch it,
- * so metadataBase has to resolve in every environment the app runs in.
- */
-const siteUrl = process.env.NEXT_PUBLIC_SITE_URL
-  ? process.env.NEXT_PUBLIC_SITE_URL
-  : process.env.VERCEL_PROJECT_PRODUCTION_URL
-    ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-    : process.env.VERCEL_URL
-      ? `https://${process.env.VERCEL_URL}`
-      : "http://localhost:3000";
-
 export const metadata: Metadata = {
-  metadataBase: new URL(siteUrl),
+  // og:image must be absolute for X, Telegram and Farcaster to fetch it.
+  metadataBase: new URL(siteUrl()),
   title: "Hyperscope — read any Hyperliquid wallet",
   description:
     "Live positions, distance to liquidation, and real win rate for any Hyperliquid trader. Free, no wallet connection.",
@@ -58,6 +48,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </span>
               </Link>
               <nav className="flex items-center gap-5 eyebrow">
+                <Link href="/heat" className="hover:text-amber transition-colors">
+                  Liquidations
+                </Link>
                 <Link href="/board" className="hover:text-amber transition-colors">
                   The board
                 </Link>
