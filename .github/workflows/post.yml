@@ -3,9 +3,22 @@ name: Post liquidation story
 # GitHub Actions is the scheduler because Vercel's free tier only allows one
 # cron run per day. This runs hourly, costs nothing on a public repo, and also
 # holds the "already posted" state by committing it back.
+#
+# PAUSED 2026-08-20. Every scheduled run failed in a few seconds with
+# "SITE_URL is required" because the SITE_URL repo variable and all posting
+# secrets are empty, and Hyperscope is not deployed yet. That was one failure
+# email every hour.
+#
+# To re-enable:
+#   1. Settings > Secrets and variables > Actions > Variables: set SITE_URL
+#      (e.g. https://hyperscope.vercel.app)
+#   2. Add whichever secrets you actually post to (TELEGRAM_*, X_*, DISCORD_*).
+#      scripts/post.mjs skips any channel whose secrets are missing.
+#   3. Run it manually with dry_run = true and check the output.
+#   4. Uncomment the two schedule lines below.
 on:
-  schedule:
-    - cron: "17 * * * *"
+  # schedule:
+  #   - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
