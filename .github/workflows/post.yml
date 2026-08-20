@@ -1,1 +1,56 @@
-PLACEHOLDER
+name: Post liquidation story
+
+# GitHub Actions is the scheduler because Vercel's free tier only allows one
+# cron run per day. This runs hourly, costs nothing on a public repo, and also
+# holds the "already posted" state by committing it back.
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the story without publishing"
+        type: boolean
+        default: true
+
+concurrency:
+  group: post-story
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Post the current story
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          DRY_RUN: ${{ inputs.dry_run && '1' || '' }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          X_API_KEY: ${{ secrets.X_API_KEY }}
+          X_API_SECRET: ${{ secrets.X_API_SECRET }}
+          X_ACCESS_TOKEN: ${{ secrets.X_ACCESS_TOKEN }}
+          X_ACCESS_SECRET: ${{ secrets.X_ACCESS_SECRET }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: node scripts/post.mjs
+
+      - name: Record what was published
+        run: |
+          if [[ -n "$(git status --porcelain data/posted.json)" ]]; then
+            git config user.name "hyperscope-bot"
+            git config user.email "actions@github.com"
+            git add data/posted.json
+            git commit -m "Record posted story"
+            git push
+          else
+            echo "Nothing new to record."
+          fi
